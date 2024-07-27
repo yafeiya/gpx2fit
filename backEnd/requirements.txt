@@ -1,0 +1,6 @@
+fit_tool==0.9.13
+fitparse==1.2.0
+Flask==3.0.3
+geopy==2.4.1
+gpxpy
+Requests==2.32.3
