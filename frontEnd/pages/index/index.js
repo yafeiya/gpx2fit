@@ -1,8 +1,9 @@
 Page({  
     data: {
-        tempFilePath: '',
-        upflog:''
+        tmp_flie:'',
+        file_name:''
       },
+    // 生成随机文件名
      generateRandomFileName:function() {
         const randomString = Math.random().toString(36).substring(2, 10); // 生成随机字符串
         return `${randomString}.fit`; // 返回随机文件名，后缀为 .fit
@@ -12,46 +13,117 @@ Page({
         const randomFileName = this.generateRandomFileName()
         console.log("随机名",randomFileName)
     },
-    // gpx文件上传
-    onChooseMessageFile: function() {  
-        wx.chooseMessageFile({
-                count: 1,  // 允许选择的文件数量
-                type: 'file',  // 可以选择的文件类型，'image', 'video', 'file' 或 'all'
+    onChooseMessageFile: async function() {
+        try {
+            // 选择文件
+            const tempFilePath = await this.chooseMessageFile();
+            // 上传文件
+            await this.uploadFile(tempFilePath);
+            // 上传成功后下载文件
+            await this.downloadFile();
+        } catch (err) {
+            console.error('操作失败:', err);
+            wx.showToast({
+                title: '操作失败',
+                icon: 'none'
+            });
+        }
+    },
+    
+    chooseMessageFile: function() {
+        return new Promise((resolve, reject) => {
+            wx.chooseMessageFile({
+                count: 1,
+                type: 'file',
                 extension: ['.gpx'],
                 success: function(res) {
-                const tempFilePath = res.tempFiles[0].path;
-                  // 上传文件
-                wx.uploadFile({
-                    url: 'https://www.yafeiya.top/upload', 
-                    filePath: tempFilePath,
-                    name: 'file',  // 后端接收文件时使用的字段名
-                    success: function(uploadRes) {
-                      console.log('文件上传成功:', uploadRes);
-                      wx.showToast({
-                        title: '上传成功',
-                        icon: 'success'
-                      });
-                    },
-                    fail: function(err) {
-                      console.log('文件上传失败:', err);
-                      wx.showToast({
-                        title: '文件上传失败',
-                        icon: 'none'
-                      });
-                    }
-                  });
+                    const tempFilePath = res.tempFiles[0].path;
+                    resolve(tempFilePath); // 返回选择的文件路径
                 },
                 fail: function(err) {
-                  console.log('选择文件失败:', err);
+                    console.log('选择文件失败:', err);
+                    reject(err);
                 }
-              });
-    } ,
-
-    shareFile: function(filePath) {
-        const randomFileName = this.generateRandomFileName()
+            });
+        });
+    },
+    
+    uploadFile: function(tempFilePath) {
+        return new Promise((resolve, reject) => {
+            wx.uploadFile({
+                url: 'https://www.yafeiya.top/upload',
+                filePath: tempFilePath,
+                name: 'file',
+                success: function(uploadRes) {
+                    console.log('文件上传成功:', uploadRes);
+                    wx.showToast({
+                        title: '上传成功',
+                        icon: 'success'
+                    });
+                    resolve(); // 上传成功
+                },
+                fail: function(err) {
+                    console.log('文件上传失败:', err);
+                    wx.showToast({
+                        title: '文件上传失败',
+                        icon: 'none'
+                    });
+                    reject(err); // 上传失败
+                }
+            });
+        });
+    },
+    
+    downloadFile: function() {
+        return new Promise((resolve, reject) => {
+            wx.downloadFile({
+                url: 'https://www.yafeiya.top/download/output.fit',
+                success: (res) => {
+                    if (res.statusCode === 200) {
+                        console.log("下载成功", res);
+                        const fs = wx.getFileSystemManager();
+                        const now = new Date();
+                        const utcOffset = 8 * 60; // 东八区与UTC的时差（分钟）
+                        const localTime = new Date(now.getTime() + (utcOffset * 60 * 1000));
+                        const timeStamp = localTime.toISOString().replace(/[:.-]/g, '').slice(2, 13); // 格式化为 YYYYMMDDHHMM
+                        const fileName = `output_${timeStamp}.fit`; // 文件名
+    
+                        fs.saveFile({
+                            tempFilePath: res.tempFilePath,
+                            filePath: `${wx.env.USER_DATA_PATH}/${fileName}`,
+                            success: (result) => {
+                                this.setData({ tmp_flie: result.savedFilePath, file_name: fileName });
+                                console.log('文件保存路径:', result.savedFilePath);
+                                resolve(); // 下载并保存成功
+                            },
+                            fail: function(error) {
+                                console.log('文件保存失败', error);
+                                reject(error); // 保存失败
+                            }
+                        });
+                    } else {
+                        console.error('下载失败，状态码:', res.statusCode);
+                        reject(new Error('下载失败')); // 下载失败
+                    }
+                },
+                fail: function(err) {
+                    console.error('文件下载失败', err);
+                    reject(err); // 下载请求失败
+                }
+            });
+        });
+    },
+    shareMFile: function() {
+        if (!this.data.tmp_flie) {
+            wx.showToast({
+              title: '请先上传gpx文件',
+              icon: 'none'
+            });
+            return;
+          }
         wx.shareFileMessage({
-            filePath: filePath,
-            fileName: randomFileName,
+            filePath: this.data.tmp_flie,
+            fileName: this.data.file_name,
             success: function() {
                 console.log('文件分享成功');
             },
@@ -60,22 +132,7 @@ Page({
             }
     });
     },
-    // 分享fit文件
-    downloadFile: function() {
-        wx.downloadFile({
-        url: 'https://www.yafeiya.top/download/output.fit', 
-        success: (res) => { // 使用箭头函数保持上下文
-            if (res.statusCode === 200) {
-            console.log("下载成功", res);
-            this.shareFile(res.tempFilePath); // 使用 this 调用 shareFile
-            }
-        },
-        fail: function(err) {
-            console.error('文件下载失败', err);
-            }
-        });
-    },
-    //上传相册
+
     uploadAlbum: function() {  
         // 实现上传逻辑，例如使用 wx.uploadFile  
         wx.chooseImage({  

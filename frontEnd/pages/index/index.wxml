@@ -1,6 +1,6 @@
 <view class="container">  
   <button bindtap="onChooseMessageFile">gpx上传</button> 
-  <button bindtap="downloadFile">fit下载</button>  
+  <button bindtap="shareMFile">fit下载</button>  
   <button bindtap="uploadAlbum">相册上传(续)</button> 
   <!-- <button bindtap="test">测试按钮</button>  -->
   <!-- <button bindtap="onChooseFileTap">文件系统上传</button> -->
